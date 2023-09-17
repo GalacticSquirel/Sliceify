@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>STL Viewer</title>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
+                "three/examples/jsm/": "https://unpkg.com/three@0.155.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        var controls = new OrbitControls(camera, renderer.domElement);
+
+        var mesh;
+
+        var loader = new STLLoader();
+        loader.load("{{path}}", function (geometry) {
+            var material = new THREE.MeshNormalMaterial();
+            mesh = new THREE.Mesh(geometry, material);
+            
+            scene.add(mesh);
+        });
+
+        camera.position.z = 5;
+
+        var rotateBy90Degrees = function (axis) {
+            if (mesh) {
+                var angle = Math.PI / 2;
+                if (axis === 'x') {
+                    mesh.rotation.x += angle;
+                } else if (axis === 'y') {
+                    mesh.rotation.y += angle;
+                } else if (axis === 'z') {
+                    mesh.rotation.z += angle;
+                }
+            }
+        };
+
+        var alignWithBoundingBox = function () {
+            if (mesh) {
+                var boundingBox = new THREE.Box3().setFromObject(mesh);
+                var center = boundingBox.getCenter(new THREE.Vector3());
+                var size = boundingBox.getSize(new THREE.Vector3());
+                var distance = Math.max(size.x, size.y, size.z);
+                camera.position.copy(center);
+                camera.position.z += distance; // Move camera back to view the object
+                camera.lookAt(center);
+            }
+        };
+
+        var animate = function () {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        };
+
+        animate();
+        
+        // Add the rotation buttons dynamically
+        var buttonPane = document.createElement('div');
+        buttonPane.id = 'buttonPane';
+        buttonPane.style.position = 'absolute';
+        buttonPane.style.top = '0';
+        buttonPane.style.right = '0';
+        buttonPane.style.padding = '20px';
+        buttonPane.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        buttonPane.style.color = 'white';
+        buttonPane.style.display = 'flex';
+        buttonPane.style.flexDirection = 'column';
+        document.body.appendChild(buttonPane);
+
+        var createButton = function (axis) {
+            var button = document.createElement('button');
+            button.textContent = `Rotate ${axis.toUpperCase()} 90°`;
+            button.onclick = function () {
+                rotateBy90Degrees(axis);
+            };
+            buttonPane.appendChild(button);
+        };
+
+        createButton('x');
+        createButton('y');
+        createButton('z');
+
+        var alignButton = document.createElement('button');
+        alignButton.textContent = 'Align Camera';
+        alignButton.onclick = function () {
+            alignWithBoundingBox();
+        };
+        buttonPane.appendChild(alignButton);
+        alignWithBoundingBox();
+    </script>
+    <style>
+        #buttonPane {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        button {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Success Page</title>
+</head>
+<body>
+    <h1>Job Information</h1>
+    <p>Job Name: {{ job_name }}</p>
+    <p>Combined STL Path: {{ combined_stl_path }}</p>
+    <p>Download DXF Path: {{ download_dxf_path }}</p>
+    
+    <h2>Actions</h2>
+    <a href="{{ url_for('viewfiles', job_name=job_name) }}" class="button">View Files</a>
+    <a href="{{ url_for('viewstl', job_name=job_name) }}" class="button">View Combined STL</a>
+    <a href="{{ url_for('download_dxf', job_name=job_name) }}" class="button">Download DXF</a>
+</body>
+</html>

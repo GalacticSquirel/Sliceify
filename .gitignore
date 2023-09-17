@@ -1,0 +1,13 @@
+/cam_anderson
+/__pycache__
+/herschel_shapiro
+/web/__pycache__
+/web/static
+/web/uploads
+/*.obj
+/*.dxf
+/*.png
+/*.py
+!/image_moodboard.py
+/*.stl
+/web/*.zip

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Explorer</title>
+</head>
+<body>
+    <h1>File Explorer</h1>
+    <table id="fileTable">
+        <thead>
+            <tr>
+                <th>File Name</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            {% if item != "svg_layers" %}
+                <tr>
+                    <td>
+                        {% if '.' in item %}
+                            <a href="{{ url_for('static', filename=download_path ~ '/' ~ item) }}">{{ item }}</a>
+                        {% else %}
+                            <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">{{ item }}</a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if '.' in item and '.dxf' in item%}
+                        <a href="{{ url_for('viewdxf', job_name=download_path.split('/')[0], folder=download_path.split('/')[1], file=item) }}">View Item</a>
+                        {% else %}
+                            <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">Download</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
