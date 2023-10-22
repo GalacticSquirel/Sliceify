@@ -1,0 +1,4 @@
+Flask==3.0.0
+numpy==1.26.0
+trimesh==3.23.5
+Werkzeug==3.0.0
