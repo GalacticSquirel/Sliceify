@@ -11,9 +11,9 @@ import string
 import datetime
 app = Flask(__name__)
 
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
+# UPLOAD_FOLDER = 'uploads'
+# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['secret_key'] = "sajkdhiuahdwwab"
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'stl'}
 def rotate_mesh(mesh, axis, degrees):
@@ -106,9 +106,11 @@ def index():
                 os.makedirs(os.path.join('static', folder_name, 'upload'))
                 print(f"Created folder: {folder_name} in static")
                 filename = secure_filename(file.filename)
-                filepath = os.path.join('static',folder_name, 'upload', filename)
+                filepath = os.path.join('static',folder_name, 'upload/upload.stl')
+                print(filepath)
                 file.save(filepath)
-                return slice_stl_file(filepath,folder_name,3)
+                # return slice_stl_file(filepath,folder_name,3)
+                return initial_configuration(folder_name,100)
             except OSError as e:
                 print(f"Error creating folder: {e}")
                 flash('Error creating folder')
@@ -169,14 +171,21 @@ def viewdxf(job_name, folder, file):
 
 @app.route('/rotate/<job_name>/<axis>/<degrees>')
 def rotate_upload(job_name, axis, degrees):
-    path_of_stl = os.path.join('static', job_name, 'upload', os.listdir(os.path.join('static', job_name, 'upload'))[0])
+    path_of_stl = os.path.join('static', job_name, 'upload/upload.stl')
     mesh = trimesh.load(path_of_stl)
     rotate_mesh(mesh, axis,int(degrees)).export(path_of_stl)
     
     return [ axis, degrees]
 
-def initial_rotation(filepath, foldername):
-    pass
+@app.route('/submitrotate/<job_name>/<int:slice_height>')
+def submit_rotate(job_name,slice_height):
+    path_of_stl = os.path.join('static', job_name, 'upload/upload.stl')
+    return slice_stl_file(path_of_stl,job_name,slice_height)
+
+def initial_configuration(job_name, slice_height):
+    path = f"/static/{job_name}/upload/upload.stl"
+    return render_template("rotate.html", path=path, job_name=job_name, slice_height=slice_height)
+
 # slice_stl_file(filepath,folder_name,3) should be returned after a final submit button is pressed. it should be same 
 # gui as for viewing combined stl except camera should not be moveable but zoom should still be there. The viewer should get roladed
 # after each button press except submit, so need to change rotate_upload() so it returns the viewer as a call should be made to rotate
@@ -210,7 +219,7 @@ def slice_stl_file(input_file, output_directory, slice_height=3):
         dxf_output_file = os.path.join(dxf_directory,f"slice_{i}.dxf")
         
         if not slice_mesh==None:
-            slice_mesh.export(dxf_output_file, file_type="dxf", version="2000")
+            slice_mesh.export(dxf_output_file, file_type="dxf")
             print(slice_mesh.to_planar()[0])
             slice_mesh.to_planar()[0].export(svg_output_file, file_type="svg")
             
@@ -223,8 +232,8 @@ def slice_stl_file(input_file, output_directory, slice_height=3):
             input_folder = os.path.join(job_path,"dxf_layers")
             output_folder = os.path.join(job_path,"output_stl_layers")
             output_path = f"{job_path}//combined_output.stl"
-            batch.extrude_trimesh_dxf_to_stl(input_folder, output_folder,3)
-            batch.combine_stl_files(output_folder, output_path,3)
+            batch.extrude_trimesh_dxf_to_stl(input_folder, output_folder,slice_height)
+            batch.combine_stl_files(output_folder, output_path,slice_height)
             success = True
         except Exception as e:
             print(e)
