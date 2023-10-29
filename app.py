@@ -99,13 +99,15 @@ def index():
             flash('No selected file')
             return redirect('/')
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+
             folder_name = generate_unique_folder_name()
             try:
-                os.makedirs(os.path.join('static',folder_name))
+                os.makedirs(os.path.join('static', folder_name))
+                os.makedirs(os.path.join('static', folder_name, 'upload'))
                 print(f"Created folder: {folder_name} in static")
+                filename = secure_filename(file.filename)
+                filepath = os.path.join('static',folder_name, 'upload', filename)
+                file.save(filepath)
                 return slice_stl_file(filepath,folder_name,3)
             except OSError as e:
                 print(f"Error creating folder: {e}")
@@ -166,19 +168,34 @@ def viewdxf(job_name, folder, file):
     return render_template('dxf.html', svgs=svgs,initial_index=int(file.split(".")[0].split("_")[1])-1)
     # return url_for('static',filename=f"{job_name}/{folder}/{file}")
 
+@app.route('/rotate/<job_name>/<axis>/<degrees>')
+def rotate_upload(job_name, axis, degrees):
+    path_of_stl = os.path.join('static', job_name, 'upload', os.listdir(os.path.join('static', job_name, 'upload'))[0])
+    mesh = trimesh.load(path_of_stl)
+    rotate_mesh(mesh, axis,int(degrees)).export(path_of_stl)
+    
+    return [ axis, degrees]
+
+def initial_rotation(filepath, foldername):
+    pass
+# slice_stl_file(filepath,folder_name,3) should be returned after a final submit button is pressed. it should be same 
+# gui as for viewing combined stl except camera should not be moveable but zoom should still be there. The viewer should get roladed
+# after each button press except submit, so need to change rotate_upload() so it returns the viewer as a call should be made to rotate
+# _viewer() on each rotation
 def slice_stl_file(input_file, output_directory, slice_height=3):
     
     # Load and process the STL file
     mesh = trimesh.load(input_file)
-    mesh = rotate_mesh(mesh, "y", 90)
-    mesh = rotate_mesh(mesh, "z", 90)
-    mesh = scale_mesh(mesh, 0.8)
+    # mesh = rotate_mesh(mesh, "x", 90)
+    # mesh = rotate_mesh(mesh, "y", 270)
+    # mesh = rotate_mesh(mesh, "z", 90)
+    mesh = scale_mesh(mesh, 30)
 
     min_z, max_z = mesh.bounds[:, 2]
 
     # Calculate the number of slices needed
     num_slices = int((max_z - min_z) / slice_height)
-
+    print(num_slices)
     dxf_directory = os.path.join('static', output_directory,"dxf_layers")
     svg_directory = os.path.join('static', output_directory,"svg_layers")
     os.makedirs(dxf_directory, exist_ok=True)
@@ -194,7 +211,7 @@ def slice_stl_file(input_file, output_directory, slice_height=3):
         dxf_output_file = os.path.join(dxf_directory,f"slice_{i}.dxf")
         
         if not slice_mesh==None:
-            slice_mesh.export(dxf_output_file, file_type="dxf")
+            slice_mesh.export(dxf_output_file, file_type="dxf", version="2000")
             print(slice_mesh.to_planar()[0])
             slice_mesh.to_planar()[0].export(svg_output_file, file_type="svg")
             
