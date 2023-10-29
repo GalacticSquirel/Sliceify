@@ -137,10 +137,10 @@ def download_dxf(job_name):
     import zipfile
     try:
         # Create a ZIP file containing the contents of the specified folder
-        zip_filename = f"{job_name}_dxf_layers.zip"
+        zip_filename = f"static/{job_name}/{job_name}_dxf_layers.zip"
         folder_path = f"static/{job_name}/dxf_layers"
         folder_abs_path = os.path.join(app.root_path, folder_path)
-        
+        print(zip_filename, folder_path, folder_abs_path)
         # Create the ZIP file in memory
         zip_buffer = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
         
@@ -150,11 +150,10 @@ def download_dxf(job_name):
                 src_file = os.path.join(folder_abs_path, filename)
                 zip_file_path = os.path.join('output_dxf_layers', filename)
                 zip_buffer.write(src_file, zip_file_path)
-        
-        # Close the ZIP buffer
         zip_buffer.close()
-        # Redirect to the index route after initiating the download
-        return send_file(zip_filename, as_attachment=True)  # Replace 'index' with your actual index route function name
+        
+        return send_file(zip_filename, as_attachment=True)  
+    
     except Exception as e:
         return str(e)
 def numerical_sort(item):
