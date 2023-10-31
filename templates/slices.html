@@ -33,6 +33,7 @@
             mesh = new THREE.Mesh(geometry, material);
             
             scene.add(mesh);
+            alignWithBoundingBox();
         });
 
         camera.position.z = 5;
@@ -53,11 +54,20 @@
         var alignWithBoundingBox = function () {
             if (mesh) {
                 var boundingBox = new THREE.Box3().setFromObject(mesh);
-                var center = boundingBox.getCenter(new THREE.Vector3());
-                var size = boundingBox.getSize(new THREE.Vector3());
-                var distance = Math.max(size.x, size.y, size.z);
-                camera.position.copy(center);
-                camera.position.z += distance; // Move camera back to view the object
+                var center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                var size = new THREE.Vector3();
+                boundingBox.getSize(size);
+        
+                // Calculate the distance based on the object's size and your desired perspective
+                var distance = Math.max(size.x, size.y, size.z) * 2;
+        
+                // Calculate the position of the camera
+                var frontVector = new THREE.Vector3(0, 0, 1);
+                var cameraPosition = new THREE.Vector3().copy(center).add(frontVector.multiplyScalar(distance));
+        
+                // Set the camera's position and look at the center of the object
+                camera.position.copy(cameraPosition);
                 camera.lookAt(center);
             }
         };
@@ -88,6 +98,7 @@
             button.textContent = `Rotate ${axis.toUpperCase()} 90°`;
             button.onclick = function () {
                 rotateBy90Degrees(axis);
+                alignWithBoundingBox();
             };
             buttonPane.appendChild(button);
         };
@@ -102,7 +113,6 @@
             alignWithBoundingBox();
         };
         buttonPane.appendChild(alignButton);
-        alignWithBoundingBox();
     </script>
     <style>
         #buttonPane {
