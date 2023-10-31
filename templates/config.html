@@ -7,8 +7,8 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
-                "three/examples/jsm/": "https://unpkg.com/three@0.155.0/examples/jsm/"
+                "three": "https://unpkg.com/three@latest/build/three.module.js",
+                "three/examples/jsm/": "https://unpkg.com/three@latest/examples/jsm/"
             }
         }
     </script>
@@ -31,15 +31,15 @@
         controls.enableRotate = false;
 
 
+
         // You can also adjust other parameters if needed
         controls.enableZoom = true;  // Enable zoom
         controls.enablePan = true;   // Enable pan
 
         var mesh;
 
-        // The rest of your Three.js code here
 
-
+        var geometry = new THREE.BufferGeometry();
         var loader = new STLLoader();
         loader.load("{{path}}", function (geometry) {
             var material = new THREE.MeshNormalMaterial();
@@ -47,38 +47,63 @@
 
             scene.add(mesh);
             alignWithBoundingBox();
+            computeLines(mesh, 3)
+
         });
 
+        var computeLines = function(mesh, interval) {
+            mesh.geometry.computeBoundingBox()
+            var boundingBox = mesh.geometry.boundingBox;
+
+            var lineMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
+    
+            for (var i = boundingBox.min.z; i <= boundingBox.max.z; i += interval) {
+                var points = [];
+                points.push(new THREE.Vector3(boundingBox.min.x, boundingBox.min.y, i));
+                points.push(new THREE.Vector3(boundingBox.max.x, boundingBox.max.y, i));
+                
+                var lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                var line = new THREE.Line(lineGeometry, lineMaterial);
+                scene.add(line);
+            }
+        
+        }
+        // The rest of your Three.js code here
+        
+        function removeAllLines(scene) {
+            for (var i = scene.children.length - 1; i >= 0; i--) {
+                var object = scene.children[i];
+                if (object instanceof THREE.Line) {
+                    scene.remove(object);
+                }
+            }
+        }
+        
+        window.rotations = [0,0,0];
 
         var rotateBy90Degrees = function (axis) {
             if (mesh) {
                 var angle = Math.PI / 2;
+                var rotationMatrix = new THREE.Matrix4();
+                
                 if (axis === 'x') {
-                    mesh.rotation.x += angle;
+                    rotationMatrix.makeRotationX(angle);
+                    window.rotations[0] += 90;
                 } else if (axis === 'y') {
-                    mesh.rotation.y += angle;
+                    rotationMatrix.makeRotationY(angle);
+                    window.rotations[1] += 90;
                 } else if (axis === 'z') {
-                    mesh.rotation.z += angle;
+                    rotationMatrix.makeRotationZ(angle);
+                    window.rotations[2] += 90;
                 }
-
-                // Get the values you want to pass to the Flask route
-
-                var degrees = 90; // Replace with the desired degrees
-                // Make an HTTP request to the Flask route
-                fetch(`/rotate/${jobName}/${axis}/${degrees}`, {
-                    method: 'GET',
-                })
-                    .then(response => response.text())
-                    .then(data => {
-                        // Handle the response data as needed
-                        console.log(data);
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
-
+                console.log(window.rotations)
+                
+                mesh.geometry.applyMatrix4(rotationMatrix);
+                mesh.geometry.computeBoundingBox();
+                
+                removeAllLines(scene);
+                computeLines(mesh, 3);
             }
-
         };
 
         var alignWithBoundingBox = function () {
@@ -133,7 +158,7 @@
             };
             buttonPane.appendChild(button);
         };
-
+        
         createButton('x');
         createButton('y');
         createButton('z');
@@ -161,6 +186,17 @@
         var submitButton = document.createElement('button');
         submitButton.textContent = 'Submit';
         submitButton.onclick = function () {
+            fetch(`/rotate/${jobName}/${rotations}`, {
+                method: 'GET',
+            })
+                .then(response => response.text())
+                .then(data => {
+                    // Handle the response data as needed
+                    console.log(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
             fetch(`/submitconfig/${jobName}/${sliceHeight}`, {
                 method: 'POST', // or 'GET'
                 headers: {
@@ -168,8 +204,9 @@
 
                 },
             })
-            window.location.href = `/progress/${jobName}`;
 
+            window.location.href = `/progress/${jobName}`;
+            
         };
         buttonPane.appendChild(submitButton);
     </script>
