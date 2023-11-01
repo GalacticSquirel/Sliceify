@@ -186,18 +186,8 @@
         var submitButton = document.createElement('button');
         submitButton.textContent = 'Submit';
         submitButton.onclick = function () {
-            fetch(`/rotate/${jobName}/${rotations}`, {
-                method: 'GET',
-            })
-                .then(response => response.text())
-                .then(data => {
-                    // Handle the response data as needed
-                    console.log(data);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-            fetch(`/submitconfig/${jobName}/${sliceHeight}`, {
+            
+            fetch(`/submitconfig/${jobName}/${sliceHeight}/${window.rotations}`, {
                 method: 'POST', // or 'GET'
                 headers: {
                     'Content-Type': 'application/json',
