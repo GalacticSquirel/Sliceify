@@ -19,23 +19,21 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'stl'}
 
 
-
-
 def rotate_mesh(mesh, rotations):
     radians = np.radians(rotations)
 
     # Create rotation matrices around x, y and z axes
     Rx = np.array([[1, 0, 0],
-                [0, np.cos(radians[0]), -np.sin(radians[0])],
-                [0, np.sin(radians[0]), np.cos(radians[0])]])
+                   [0, np.cos(radians[0]), -np.sin(radians[0])],
+                   [0, np.sin(radians[0]), np.cos(radians[0])]])
 
     Ry = np.array([[np.cos(radians[1]), 0, np.sin(radians[1])],
-                [0, 1, 0],
-                [-np.sin(radians[1]), 0, np.cos(radians[1])]])
+                   [0, 1, 0],
+                   [-np.sin(radians[1]), 0, np.cos(radians[1])]])
 
     Rz = np.array([[np.cos(radians[2]), -np.sin(radians[2]), 0],
-                [np.sin(radians[2]), np.cos(radians[2]), 0],
-                [0, 0, 1]])
+                   [np.sin(radians[2]), np.cos(radians[2]), 0],
+                   [0, 0, 1]])
 
     # Combine the rotations in the order: Rz * Ry * Rx
     R = np.dot(Rz, np.dot(Ry, Rx))
@@ -120,7 +118,6 @@ def index():
                 os.makedirs(os.path.join('static', folder_name))
                 os.makedirs(os.path.join('static', folder_name, 'upload'))
                 print(f'Created folder: {folder_name} in static')
-                filename = secure_filename(file.filename)
                 filepath = os.path.join(
                     'static', folder_name, 'upload/upload.stl')
                 print(filepath)
@@ -241,221 +238,224 @@ def viewdxf(job_name, folder, file):
     return render_template('dxf.html', svgs=svgs, initial_index=int(file.split('.')[0].split('_')[1])-1)
     # return url_for('static',filename=f'{job_name}/{folder}/{file}')
 
-
-
-
-
-@app.route('/submitconfig/<job_name>/<int:slice_height>/<string:rotations>', methods=['POST'])
-def submit_config(job_name, slice_height, rotations):
-    """
-    Submits a configuration for a job and processes the input file to generate 2D slices.
-
-    Args:
-        job_name (str): The name of the job.
-        slice_height (int): The height of each slice in millimeters.
-
-    Returns:
-        Response: A JSON response indicating the success of the operation.
-    """
-    try:
-        success = False
-        json.dump({'progress': 0}, open(os.path.join(
-            'static', job_name, 'data.json'), "w"))
-        progress = 0
-
-        def extract_numeric_prefix(filename):
-            match = re.match(r'slice_(\d+)_extruded\.stl', filename)
-            return int(match.group(1)) if match else 0
-
-        def move_mesh(mesh, translation_vector):
-            new_mesh = mesh.copy()  # Create a copy to avoid modifying the original mesh
-            new_mesh.apply_translation(translation_vector)
-            return new_mesh
-
-        def remove_duplicate_vertices(mesh):
-            # Remove duplicate vertices from the mesh
-            mesh.vertices, unique_indices = trimesh.grouping.unique_rows(
-                mesh.vertices)
-            mesh.faces = unique_indices[mesh.faces]
-            return mesh
-
-        def compute_vertex_normals(mesh):
-            # Compute vertex normals for the mesh
-            mesh.compute_normals()
-            return mesh
-
-        input_file = os.path.join('static', job_name, 'upload/upload.stl')
-
-        mesh = trimesh.load(input_file)
-        # mesh = scale_mesh(mesh, 30)
-
+def remake_if_exist(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    else:
         
+        shutil.rmtree(path)
+        os.makedirs(path)
+
+def extract_numeric_prefix(filename):
+    match = re.match(r'slice_(\d+)_extruded\.stl', filename)
+    return int(match.group(1)) if match else 0
+
+def move_mesh(mesh, translation_vector):
+    new_mesh = mesh.copy()  # Create a copy to avoid modifying the original mesh
+    new_mesh.apply_translation(translation_vector)
+    return new_mesh
+
+
+def slice_stl_file(mesh, job_name, slice_height, svg_directory, dxf_directory):
+    global progress
+    slices = list()
+    min_z, max_z = mesh.bounds[:, 2]
+    if slice_height == 0:
+        slice_height = 0.5
+    num_slices = int((max_z - min_z) / slice_height)
+    
+    if num_slices > 5000:
+        num_slices = 5000
         
-        rotations = list(map(lambda x: int(x), rotations.split(",")))
+    for i in range(num_slices):
+        z = min_z + i * slice_height
 
-        mesh = rotate_mesh(mesh, rotations)
-        min_z, max_z = mesh.bounds[:, 2]
-        # Calculate the number of slices needed
-        num_slices = int((max_z - min_z) / slice_height)
-        print(num_slices)
-        dxf_directory = os.path.join('static', job_name, 'dxf_layers')
-        svg_directory = os.path.join('static', job_name, 'svg_layers')
-        if not os.path.exists(dxf_directory):
-            print(f"Making: {dxf_directory}")
-            os.makedirs(dxf_directory)
-        else:
-            import shutil
-            shutil.rmtree(dxf_directory)
-            os.makedirs(dxf_directory)
-        if not os.path.exists(svg_directory):
-            os.makedirs(svg_directory)
-        else:
-            import shutil
-            shutil.rmtree(svg_directory)
-            os.makedirs(svg_directory)
+        slice_mesh = mesh.section(
+            plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
 
-        to_show = []
-        # Slice the mesh and export 2D files
+        # Export the 2D slice as a DXF file
+        svg_output_file = os.path.join(svg_directory, f'slice_{i}.svg')
+        dxf_output_file = os.path.join(dxf_directory, f'slice_{i}.dxf')
+        if not slice_mesh == None and type(slice_mesh) == trimesh.path.path.Path3D:
+            slice_mesh.export(dxf_output_file, file_type='dxf')
+            slice_mesh.to_planar()[0].export(
+                svg_output_file, file_type='svg')
+            slices.append(slice_mesh)
+        if not progress == round((i/(num_slices*4)*100)):
+            update_progress(
+                round((i/(num_slices*4)*100)), job_name)
+    return slices
 
-        for i in range(num_slices):
-            z = min_z + i * slice_height
-            
-            slice_mesh = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
 
-            # Export the 2D slice as a DXF file
-            svg_output_file = os.path.join(svg_directory, f'slice_{i}.svg')
-            dxf_output_file = os.path.join(dxf_directory, f'slice_{i}.dxf')
+def extrude_dxfs(input_folder, output_folder, job_name, slice_height):
+    global progress
+    file_count = len(os.listdir(input_folder))
+    for index, filename in enumerate(os.listdir(input_folder)):
+        if filename.endswith(".dxf"):
+            dxf_path = os.path.join(input_folder, filename)
+            mesh = trimesh.load(dxf_path)
+            if type(mesh) == trimesh.path.path.Path2D:
+                # Extract the 2D polygons from the 3D mesh
+                polygons = mesh.polygons_full
 
-            if not slice_mesh == None:
-                slice_mesh.export(dxf_output_file, file_type='dxf')
-                # print(slice_mesh.to_planar()[0])
-                slice_mesh.to_planar()[0].export(svg_output_file, file_type='svg')
+                # Define the translation matrix for extrusion
+                translation_matrix = np.eye(4)
+                translation_matrix[2, 3] = slice_height
 
-                to_show.append(slice_mesh)
-            if not progress == round((i/(num_slices*4)*100)):
-                progress = update_progress(round((i/(num_slices*4)*100)), job_name)
-            # print(round((i/(num_slices*4)*100)),1)
-        if not to_show == None:
-            success = True
-
-            job_path = os.path.join('static', job_name)
-            input_folder = os.path.join(job_path, 'dxf_layers')
-            output_folder = os.path.join(job_path, 'output_stl_layers')
-            output_path = f'{job_path}//combined_output.stl'
-
-            if not os.path.exists(output_folder):
-                os.makedirs(output_folder)
-            else:
-                import shutil
-                shutil.rmtree(output_folder)
-                os.makedirs(output_folder)
-            file_count = len(os.listdir(input_folder))
-            print(file_count)
-            for index, filename in enumerate(os.listdir(input_folder)):
-                if filename.endswith(".dxf"):
-                    dxf_path = os.path.join(input_folder, filename)
-                    mesh = trimesh.load(dxf_path)
-
-                    # Extract the 2D polygons from the 3D mesh
-                    polygons = mesh.polygons_full
-
-                    # Define the translation matrix for extrusion
-                    translation_matrix = np.eye(4)
-                    translation_matrix[2, 3] = slice_height
-
-                    # Extrude each polygon individually
-                    extruded_meshes = []
-                    for polygon in polygons:
+                # Extrude each polygon individually
+                extruded_meshes = []
+                for polygon in polygons:
+                    if hasattr(trimesh, "creation"):
                         extruded_mesh = trimesh.creation.extrude_polygon(
                             polygon, slice_height, transform=None)
                         extruded_meshes.append(extruded_mesh)
 
-                    # Merge the extruded meshes into a single mesh
-                    combined_mesh = trimesh.util.concatenate(extruded_meshes)
+                # Merge the extruded meshes into a single mesh
+                combined_mesh = trimesh.util.concatenate(
+                    extruded_meshes)
 
-                    # Save the extruded mesh as STL
-                    stl_filename = filename.replace(".dxf", "_extruded.stl")
-                    stl_path = os.path.join(output_folder, stl_filename)
+                # Save the extruded mesh as STL
+                stl_filename = filename.replace(
+                    ".dxf", "_extruded.stl")
+                stl_path = os.path.join(output_folder, stl_filename)
+                if type(combined_mesh) == trimesh.base.Trimesh:
                     combined_mesh.export(stl_path, file_type="stl")
-                if not progress == round((index/(file_count*4)*100)+25):
-                    progress = update_progress(
-                        round((index/(file_count*4)*100)+25), job_name)
-                    # print(round((index/(file_count*4)*100))+25,2)
+            if not progress == round((index/(file_count*4)*100)+25):
+                update_progress(
+                    round((index/(file_count*4)*100)+25), job_name)
+    return True
 
-            meshes = []
-            stls = []
+def combine_stls(output_folder, job_name, slice_height, output_path):
+    global progress
+    meshes = []
+    stls = []
 
-            for filename in os.listdir(output_folder):
-                if filename.endswith(".stl"):
-                    stls.append(filename)
+    for filename in os.listdir(output_folder):
+        if filename.endswith(".stl"):
+            stls.append(filename)
 
-            names_of_stls = sorted(stls, key=extract_numeric_prefix)
+    names_of_stls = sorted(stls, key=extract_numeric_prefix)
 
-            # Use the provided extrusion height
-            translation_vector = [0, 0, slice_height]
-            cumulative_translation = [0, 0, 0]
-            stl_name_length = len(names_of_stls)
-            print(stl_name_length)
-            for index, name in enumerate(names_of_stls):
-                stl_path = os.path.join(output_folder, name)
-                mesh = trimesh.load(stl_path)
+    # Use the provided extrusion height
+    translation_vector = [0, 0, slice_height]
+    cumulative_translation = [0, 0, 0]
+    stl_name_length = len(names_of_stls)
+    print(stl_name_length)
+    for index, name in enumerate(names_of_stls):
+        stl_path = os.path.join(output_folder, name)
+        mesh = trimesh.load(stl_path)
 
-                # Calculate the translation for the current mesh
-                mesh_translation = [coord + cum_trans for coord,
-                                    cum_trans in zip(translation_vector, cumulative_translation)]
+        # Calculate the translation for the current mesh
+        mesh_translation = [coord + cum_trans for coord,
+                            cum_trans in zip(translation_vector, cumulative_translation)]
 
-                # Apply the translation to the current mesh
-                moved_mesh = move_mesh(mesh, mesh_translation)
+        # Apply the translation to the current mesh
+        moved_mesh = move_mesh(mesh, mesh_translation)
 
-                # Append the translated mesh to the list
-                meshes.append(moved_mesh)
+        # Append the translated mesh to the list
+        meshes.append(moved_mesh)
 
-                # Update the cumulative translation for the next mesh
-                cumulative_translation = mesh_translation
-                if not progress == round((index/(stl_name_length*4)*100)+50):
-                    progress = update_progress(
-                        round((index/(stl_name_length*4)*100)+50), job_name)
-                # print(round((index/(stl_name_length*4)*100))+50,3)
-            combined_vertices = []
-            combined_faces = []
+        # Update the cumulative translation for the next mesh
+        cumulative_translation = mesh_translation
+        if not progress == round((index/(stl_name_length*4)*100)+50):
+            update_progress(
+                round((index/(stl_name_length*4)*100)+50), job_name)
 
-            # Loop through each mesh and update the vertices and faces
-            vertex_offset = 0
-            mesh_count = len(meshes)
-            print(mesh_count)
-            for index, mesh in enumerate(meshes):
-                combined_vertices.extend(mesh.vertices.tolist())
-                combined_faces.extend((mesh.faces + vertex_offset).tolist())
-                vertex_offset += len(mesh.vertices)
-                if not progress == round((index/(mesh_count*4)*100)+75):
-                    progress = update_progress(
-                        round((index/(mesh_count*4)*100)+75), job_name)
+    combined_vertices = []
+    combined_faces = []
 
-                # print(round((index/(mesh_count*4)*100))+75,4)
-            # Create the combined mesh
-            combined_mesh = trimesh.Trimesh(
-                vertices=combined_vertices, faces=combined_faces)
+    # Loop through each mesh and update the vertices and faces
+    vertex_offset = 0
+    mesh_count = len(meshes)
+    print(mesh_count)
+    for index, mesh in enumerate(meshes):
+        combined_vertices.extend(mesh.vertices.tolist())
+        combined_faces.extend(
+            (mesh.faces + vertex_offset).tolist())
+        vertex_offset += len(mesh.vertices)
+        if not progress == round((index/(mesh_count*4)*100)+75):
+            update_progress(
+                round((index/(mesh_count*4)*100)+75), job_name)
 
-            combined_mesh.export(output_path, file_type="stl")
-            update_progress(100, job_name)
+        # print(round((index/(mesh_count*4)*100))+75,4)
+    # Create the combined mesh
+    combined_mesh = trimesh.Trimesh(
+        vertices=combined_vertices, faces=combined_faces)
+
+    combined_mesh.export(output_path, file_type="stl")
+    update_progress(100, job_name)
+    return True
+@app.route('/submitconfig/<job_name>/<float:slice_height>/<string:rotations>', methods=['POST'])
+def submit_config(job_name, slice_height, rotations):
+    success = False
+    try:
+        
+        json.dump({'progress': 0}, open(os.path.join(
+            'static', job_name, 'data.json'), "w"))
+
+
+        # set directories
+        
+        input_file = os.path.join('static', job_name, 'upload/upload.stl')
+        job_path = os.path.join('static', job_name)
+        input_folder = os.path.join(job_path, 'dxf_layers')
+        output_folder = os.path.join(job_path, 'output_stl_layers')
+        output_path = f'{job_path}//combined_output.stl'
+        dxf_directory = os.path.join('static', job_name, 'dxf_layers')
+        svg_directory = os.path.join('static', job_name, 'svg_layers')
+        
+        # load mesh
+        mesh = trimesh.load(input_file)
+        
+        # rotate mesh
+        rotations = list(map(lambda x: int(x), rotations.split(",")))
+        mesh = rotate_mesh(mesh, rotations)
+        
+
+        remake_if_exist(dxf_directory)
+        remake_if_exist(svg_directory)
+        remake_if_exist(output_folder)
+        
+        # Slice the mesh and export 2D files
+        
+        slices = slice_stl_file(mesh, job_name, slice_height, svg_directory, dxf_directory)
+
+
+        if not slices == None:
             success = True
+            if extrude_dxfs(input_folder, output_folder, job_name, slice_height):
+                if combine_stls(output_folder, job_name, slice_height, output_path):
+                
+                    success = True
     except Exception as e:
-        raise(e)
-        success = False
+        raise (e)
+
     resp = jsonify(success)
     resp.status_code = 200
     return resp
 
 
 def update_progress(curr_progress, job_name):
+    print(curr_progress)
     json.dump({'progress': curr_progress}, open(
         os.path.join('static', job_name, 'data.json'), "w"))
     return curr_progress
 
 
 def initial_configuration(job_name, slice_height):
-    path = f'/static/{job_name}/upload/upload.stl'
-    return render_template('config.html', path=path, job_name=job_name, slice_height=slice_height)
+    path = os.path.join('static', job_name, 'upload/upload.stl')
+    mesh = trimesh.load(path)
+    min_z, max_z = mesh.bounds[:, 2]
+
+
+    max_slice_height = (max_z - min_z) / 2
+    min_slice_height = (max_z - min_z) /5000
+    if slice_height > max_slice_height:
+        slice_height = max_slice_height
+    # doesn't account for rotation
+        
+    print(min_slice_height, max_slice_height)
+    return render_template('config.html', path=f'/static/{job_name}/upload/upload.stl', job_name=job_name, slice_height=slice_height, max_slice_height=max_slice_height, min_slice_height=min_slice_height)
 # add maximum slice size by doing half of width
 
 

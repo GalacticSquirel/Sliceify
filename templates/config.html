@@ -175,9 +175,14 @@
         var slider = document.createElement('input');
         slider.type = 'number';
         slider.id = 'mySlider';
-        slider.min = 1;
-        slider.value = 3;
+        slider.min = {{min_slice_height}}.toFixed(5);
+        slider.max = {{max_slice_height}}.toFixed(1);
+        slider.value = {{slice_height}};
+        slider.step = (({{max_slice_height}}.toFixed(1)/{{min_slice_height}}.toFixed(5))/10000).toFixed(1);
         slider.oninput = function () {
+            if (this.value < {{min_slice_height}}.toFixed(5)) {
+                this.value = {{min_slice_height}}.toFixed(5);
+            }
             sliceHeight = this.value;
         };
 
@@ -187,14 +192,13 @@
         submitButton.textContent = 'Submit';
         submitButton.onclick = function () {
             
-            fetch(`/submitconfig/${jobName}/${sliceHeight}/${window.rotations}`, {
+            fetch(`/submitconfig/${jobName}/${parseFloat(sliceHeight).toFixed(5)}/${window.rotations}`, {
                 method: 'POST', // or 'GET'
                 headers: {
                     'Content-Type': 'application/json',
 
                 },
             })
-
             window.location.href = `/progress/${jobName}`;
             
         };
