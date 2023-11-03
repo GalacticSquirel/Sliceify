@@ -48,16 +48,21 @@
             scene.add(mesh);
             alignWithBoundingBox();
             computeLines(mesh, 3)
-
+            const sld = new Slider();
+            createButton('x', sld);
+            createButton('y', sld);
+            createButton('z', sld);
+            
+            sld.create({{min_slice_height}},{{max_slice_height}});
+            buttonPane.appendChild(submitButton);
         });
 
         var computeLines = function(mesh, interval) {
             mesh.geometry.computeBoundingBox()
             var boundingBox = mesh.geometry.boundingBox;
-
             var lineMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
     
-            for (var i = boundingBox.min.z; i <= boundingBox.max.z; i += interval) {
+            for (var i = boundingBox.min.z; i <= boundingBox.max.z; i += parseFloat(interval)) {
                 var points = [];
                 points.push(new THREE.Vector3(boundingBox.min.x, boundingBox.min.y, i));
                 points.push(new THREE.Vector3(boundingBox.max.x, boundingBox.max.y, i));
@@ -81,7 +86,7 @@
         
         window.rotations = [0,0,0];
 
-        var rotateBy90Degrees = function (axis) {
+        var rotateBy90Degrees = function (axis, sld) {
             if (mesh) {
                 var angle = Math.PI / 2;
                 var rotationMatrix = new THREE.Matrix4();
@@ -95,16 +100,65 @@
                 } else if (axis === 'z') {
                     rotationMatrix.makeRotationZ(angle);
                     window.rotations[2] += 90;
-                }
-                console.log(window.rotations)
-                
+                }       
                 mesh.geometry.applyMatrix4(rotationMatrix);
                 mesh.geometry.computeBoundingBox();
                 
                 removeAllLines(scene);
                 computeLines(mesh, 3);
+                mesh.geometry.computeBoundingBox()
+                var boundingBox = mesh.geometry.boundingBox;
+                var minSliceHeight = Math.abs(boundingBox.max.z - boundingBox.min.z) / 5000;
+                var maxSliceHeight = (boundingBox.max.z - boundingBox.min.z) / 2;
+                
+                sld.update(minSliceHeight, maxSliceHeight);
+                
             }
         };
+        
+
+        class Slider {
+            constructor() {
+                this.minSliceHeight = null;
+                this.maxSliceHeight = null;
+                this.slider = document.createElement('input');
+            }
+        
+            create(minSliceHeight, maxSliceHeight) {
+                this.minSliceHeight = minSliceHeight;
+                this.maxSliceHeight = maxSliceHeight;
+                this.slider.type = 'number';
+                this.slider.id = 'mySlider';
+                this.slider.min = minSliceHeight.toFixed(5);
+                this.slider.max = maxSliceHeight.toFixed(1);
+                this.slider.value = (maxSliceHeight.toFixed(1) - minSliceHeight.toFixed(5)).toFixed(0) / 10;
+                this.slider.step = ((maxSliceHeight.toFixed(1) / minSliceHeight.toFixed(5)) / 10000).toFixed(1);
+                this.slider.oninput = () => {
+                    if (this.slider.value < minSliceHeight.toFixed(5)) {
+                        this.slider.value = minSliceHeight.toFixed(5);
+                    }
+                    sliceHeight = this.slider.value;
+                    removeAllLines(scene);
+                    computeLines(mesh, sliceHeight);
+                };
+                buttonPane.appendChild(this.slider);
+            }
+        
+            update(minSliceHeight, maxSliceHeight) {
+                this.minSliceHeight = minSliceHeight;
+                this.maxSliceHeight = maxSliceHeight;
+                this.slider.min = minSliceHeight.toFixed(5);
+                this.slider.max = maxSliceHeight.toFixed(1);
+                this.slider.value = (maxSliceHeight.toFixed(1) - minSliceHeight.toFixed(5)).toFixed(0) / 10;
+                this.slider.step = ((maxSliceHeight.toFixed(1) / minSliceHeight.toFixed(5)) / 10000).toFixed(1);
+                sliceHeight = this.slider.value;
+                removeAllLines(scene);
+                computeLines(mesh, sliceHeight);
+            }
+        }
+        
+
+
 
         var alignWithBoundingBox = function () {
             if (mesh) {
@@ -149,19 +203,17 @@
         buttonPane.style.flexDirection = 'column';
         document.body.appendChild(buttonPane);
 
-        var createButton = function (axis) {
+        var createButton = function (axis,sld) {
             var button = document.createElement('button');
             button.textContent = `Rotate ${axis.toUpperCase()} 90°`;
             button.onclick = function () {
-                rotateBy90Degrees(axis);
+                rotateBy90Degrees(axis, sld); 
                 alignWithBoundingBox();
             };
             buttonPane.appendChild(button);
         };
         
-        createButton('x');
-        createButton('y');
-        createButton('z');
+
 
         var alignButton = document.createElement('button');
         alignButton.textContent = 'Align Camera';
@@ -169,24 +221,6 @@
             alignWithBoundingBox();
         };
         buttonPane.appendChild(alignButton);
-
-
-
-        var slider = document.createElement('input');
-        slider.type = 'number';
-        slider.id = 'mySlider';
-        slider.min = {{min_slice_height}}.toFixed(5);
-        slider.max = {{max_slice_height}}.toFixed(1);
-        slider.value = {{slice_height}};
-        slider.step = (({{max_slice_height}}.toFixed(1)/{{min_slice_height}}.toFixed(5))/10000).toFixed(1);
-        slider.oninput = function () {
-            if (this.value < {{min_slice_height}}.toFixed(5)) {
-                this.value = {{min_slice_height}}.toFixed(5);
-            }
-            sliceHeight = this.value;
-        };
-
-        buttonPane.appendChild(slider);
 
         var submitButton = document.createElement('button');
         submitButton.textContent = 'Submit';
@@ -202,7 +236,7 @@
             window.location.href = `/progress/${jobName}`;
             
         };
-        buttonPane.appendChild(submitButton);
+        
     </script>
     <style>
         #buttonPane {
