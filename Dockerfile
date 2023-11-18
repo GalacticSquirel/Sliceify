@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y \
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make port 80 available to the world outside this container
-EXPOSE 80
+# configure the container to run in an executed manner
+ENTRYPOINT [ "python" ]
 
 # Run app.py when the container launches
-CMD ["gunicorn", "-b", "0.0.0.0:80", "app:app"]
+CMD ["app.py"]

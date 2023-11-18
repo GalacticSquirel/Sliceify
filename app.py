@@ -445,18 +445,20 @@ def update_progress(curr_progress, job_name):
 def initial_configuration(job_name, slice_height):
     path = os.path.join('static', job_name, 'upload/upload.stl')
     mesh = trimesh.load(path)
-    min_z, max_z = mesh.bounds[:, 2]
+    
+    if mesh is not None:
+        if type(mesh) == trimesh.base.Trimesh:
+            min_z, max_z = mesh.bounds[:, 2]
+            max_slice_height = (max_z - min_z) / 2
+            min_slice_height = (max_z - min_z) / 5000
+            if slice_height > max_slice_height:
+                slice_height = max_slice_height
+            # doesn't account for rotation
+            print(min_slice_height, max_slice_height)
+            return render_template('config.html', path=f'/static/{job_name}/upload/upload.stl', job_name=job_name, slice_height=slice_height, max_slice_height=max_slice_height, min_slice_height=min_slice_height)
+    else:
 
-
-    max_slice_height = (max_z - min_z) / 2
-    min_slice_height = (max_z - min_z) /5000
-    if slice_height > max_slice_height:
-        slice_height = max_slice_height
-    # doesn't account for rotation
-        
-    print(min_slice_height, max_slice_height)
-    return render_template('config.html', path=f'/static/{job_name}/upload/upload.stl', job_name=job_name, slice_height=slice_height, max_slice_height=max_slice_height, min_slice_height=min_slice_height)
-# add maximum slice size by doing half of width
+        return "Error: Failed to load mesh."
 
 
 @app.route('/progress/<job_name>', methods=["GET", "POST"])
@@ -475,4 +477,6 @@ def output(job_name):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80, debug=True)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
