@@ -1,6 +1,7 @@
 from imports import *
 from logic.logic import *
 
+
 def init_user(app: flask.app.Flask) -> flask.app.Flask:
     """
     Initialize the user module by configuring the Flask app, setting up the database,
@@ -12,91 +13,6 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
     Returns:
         flask.app.Flask: The initialized Flask app instance.
     """
-    app.config['SECRET_KEY'] = "sdsaed1231dah£%!'^£*&'£"
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
-    csp = {
-        'default-src': [
-            '\'self\'',
-            'https://unpkg.com',
-        ],
-        'script-src': [
-            '\'self\'',
-            '\'unsafe-inline\'',
-            'https://unpkg.com',
-            'blob:',
-        ],
-        'style-src': [
-            '\'self\'',
-            '\'unsafe-inline\'',
-        ],
-    }
-    Talisman(app, content_security_policy=csp)
-    db = SQLAlchemy(app)
-
-    login_manager = LoginManager()
-    login_manager.init_app(app)
-
-    class User(UserMixin, db.Model): 
-        id = db.Column(db.Integer, primary_key=True,autoincrement=True) 
-        email = db.Column(db.String(100), unique=True)
-        password = db.Column(db.String(100))
-        name = db.Column(db.String(1000))
-        verified = db.Column(db.Integer, CheckConstraint('verified IN (0, 1)'))
-        verify_token = db.Column(db.String(1000))
-        jobs = db.Column(db.String())
-        
-        def __init__(self, email: str, password: str, name: str, verified: int, verify_token: str, jobs: list) -> None:
-            self.email = email
-            self.password = generate_password_hash(str(password), method='pbkdf2:sha256')
-            self.name = name
-            self.verified = verified
-            self.verify_token = verify_token
-            self.jobs = json.dumps(jobs)
-
-    with app.app_context():
-        db.create_all()
-
-    @login_manager.user_loader
-    def load_user(user_id):
-        return User.query.get(int(user_id))
-
-
-    def password_check(password: str) -> bool:
-        """
-        Check if a password meets the following criteria:
-        - Contains at least 8 characters
-        - Contains at least one lowercase letter
-        - Contains at least one uppercase letter
-        - Contains at least one digit
-        - Contains at least one special character
-
-        Args:
-            password (str): The password to be checked.
-
-        Returns:
-            bool: True if the password meets the criteria, False otherwise.
-        """
-        l, u, p, d = 0, 0, 0, 0
-        special = ["!", '"', "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
-                    ":", ";", "<", "=", ">", "?", "@", "[", "]", "^", "_", "`", "{", "|", "}", "~"]
-        s = str(password)
-        if s == "":
-            return False
-        if s == None:
-            return False
-        if (len(s) >= 8):
-            for i in s:
-                if (i.islower()):
-                    l += 1
-                if (i.isupper()):
-                    u += 1
-                if (i.isdigit()):
-                    d += 1
-                if i in special:
-                    p += 1
-        if not (l >= 1 and u >= 1 and p >= 1 and d >= 1 and l+p+u+d == len(s)):
-            return False
-        return True
 
 
     @app.route('/signup', methods=['POST','GET']) 
@@ -122,7 +38,6 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
         if request.method == 'POST':
             user = current_user._get_current_object()
             if not type(user) is User:
-                import html
                 email = str(request.form.get('email'))
                 username = str(request.form.get('username'))
                 password = str(request.form.get('password'))
@@ -169,7 +84,7 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
             return render_template('forms/signup.html')
 
 
-    @app.route('/login', methods=['GET', 'POST'])  # define login page path
+    @app.route('/login', methods=['GET', 'POST']) 
     def login() -> Union[werkzeug.wrappers.response.Response,str]:
         """
         Define login page path.
@@ -182,12 +97,14 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
         Returns:
             Union[werkzeug.wrappers.response.Response, str]: The login page or a redirect.
         """
+        if current_user.is_authenticated:
+            return redirect(url_for('account'))
         user = current_user._get_current_object()
         if not type(user) is User:
             if request.method == 'GET':  # if the request is a GET we return the login page
         
                 return render_template('forms/login.html')
-            else:  # if the request is POST the we check if the user exist and with te right password
+            else:  # if the request is POST the we check if the user exist and with the right password
                 email = request.form.get('email')
                 password = request.form.get('password')
                 remember = True if request.form.get('remember') else False
@@ -205,7 +122,7 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
             return redirect('/login')
         
     @app.route('/verify/<string:token>')
-    @login_required
+    @lr
     def verify(token: str) -> werkzeug.wrappers.response.Response:
         """
         Route to verify a user's account using a verification token.
@@ -231,8 +148,8 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
         else:
             return redirect(url_for('login'))
         
-    @login_required
     @app.route('/account')
+    @lr
     def account() -> str:
         """
         Renders the account page for a logged-in user.
@@ -241,8 +158,9 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
             str: The rendered HTML template for the account page.
         """
         return render_template('forms/account.html',username=current_user.name,email=current_user.email)
-    @login_required
+
     @app.route('/logout')
+    @lr
     def logout() -> werkzeug.wrappers.response.Response:
         """
         A route function that handles the '/logout' endpoint. 

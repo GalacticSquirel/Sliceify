@@ -55,7 +55,7 @@ def initial_configuration(job_name: str, slice_height: float) -> str:
                 slice_height = max_slice_height
             # doesn't account for rotation
             print(min_slice_height, max_slice_height)
-            return render_template('config.html', path=f'/static/{job_name}/upload/upload.stl', job_name=job_name, slice_height=slice_height, max_slice_height=max_slice_height, min_slice_height=min_slice_height)
+            return render_template('job/config.html', path=f'/static/{job_name}/upload/upload.stl', job_name=job_name, slice_height=slice_height, max_slice_height=max_slice_height, min_slice_height=min_slice_height)
 
     return str("Error: Failed to load mesh.")
 

@@ -1,30 +1,66 @@
 global progress
 from imports import *
 from logic.logic import *
-
+from routes.user import db
 def init_job(app):
     
+    @app.route('/start', methods=['GET', 'POST'])
+    @lr
+    def start() -> Union[str, werkzeug.wrappers.response.Response]:
+
+        if request.method == 'POST':
+            # Check if the post request has the file part
+            if 'file' not in request.files:
+                flash('No file part')
+                return redirect('/')
+            file = request.files['file']
+            # If the user does not select a file, the browser submits an empty part without a filename
+            if file.filename == '':
+                flash('No selected file')
+                return redirect('/')
+            if file and file.filename and allowed_file(file.filename):
+
+                folder_name = generate_unique_folder_name()
+                try:
+                    os.makedirs(os.path.join('static', folder_name))
+                    os.makedirs(os.path.join('static', folder_name, 'upload'))
+                    print(f'Created folder: {folder_name} in static')
+                    filepath = os.path.join(
+                        'static', folder_name, 'upload/upload.stl')
+                    
+                    file.save(filepath)
+
+                    current_user.jobs = json.dumps(json.loads(current_user.jobs) + [folder_name])
+                    db.session.commit()
+                    
+                    return initial_configuration(folder_name, 3)
+                except OSError as e:
+                    print(f'Error creating folder: {e}')
+                    flash('Error creating folder')
+        return render_template('job/start.html')
 
     @app.route('/viewstl/<string:job_name>', methods=['GET'])
+    @job_belongs_to_user
     def viewstl(job_name: str) -> str:
         """
         This function is a route handler for the '/viewstl/<string:job_name>' endpoint.
         It takes in a string parameter 'job_name' which is used to construct a file path.
-        The function prints the file path and then returns a rendered template 'slices.html'
+        The function prints the file path and then returns a rendered template 'job/slices.html'
         with the 'path' variable set to the constructed file path.
 
         Parameters:
         job_name (str): The name of the job used to construct the file path.
 
         Returns:
-        A rendered template 'slices.html' with the 'path' variable set to the combined stl file path.
+        A rendered template 'job/slices.html' with the 'path' variable set to the combined stl file path.
         """
         path = f'/static/{job_name}/combined_output.stl'
-        return render_template('slices.html', path=path)
+        return render_template('job/slices.html', path=path)
 
 
     @app.route('/viewfiles/<string:job_name>/<string:path>')
     @app.route('/viewfiles/<string:job_name>')
+    @job_belongs_to_user
     def viewfiles(job_name: str, path: Optional[str] = None) -> str:
         """
         Retrieves the list of files in a given job's directory.
@@ -42,13 +78,14 @@ def init_job(app):
             print(path)
             items = os.listdir(os.path.join(
                 app.root_path, 'static', job_name, path))
-            return render_template('viewfiles.html', items=items, job_name=job_name, download_path=f'{job_name}/{path}')
+            return render_template('job/viewfiles.html', items=items, job_name=job_name, download_path=f'{job_name}/{path}')
         else:
             items = os.listdir(os.path.join(app.root_path, 'static', job_name))
-            return render_template('viewfiles.html', items=items, job_name=job_name, download_path=job_name)
+            return render_template('job/viewfiles.html', items=items, job_name=job_name, download_path=job_name)
 
 
     @app.route('/downloaddxfs/<string:job_name>')
+    @job_belongs_to_user
     def download_dxf(job_name: str) -> Response:
         """
         Downloads the DXF files from the specified job.
@@ -85,6 +122,7 @@ def init_job(app):
 
 
     @app.route('/viewdxf//<string:job_name>/<string:folder>/<string:file>')
+    @job_belongs_to_user
     def viewdxf(job_name: str, folder: str, file: str) -> str:
         """
         A decorator that creates a route for viewing a DXF file.
@@ -104,11 +142,12 @@ def init_job(app):
 
         svgs = list(map(lambda x: url_for('static', filename=f'{job_name}/{folder.replace('dxf_', 'svg_')}/{x.replace(
             '.dxf', '.svg')}'), sorted(os.listdir(os.path.join('static', job_name, folder)), key=numerical_sort)))
-        return render_template('dxf.html', svgs=svgs, initial_index=int(file.split('.')[0].split('_')[1])-1)
+        return render_template('job/dxf.html', svgs=svgs, initial_index=int(file.split('.')[0].split('_')[1])-1)
 
 
 
     @app.route('/submitconfig/<string:job_name>/<float:slice_height>/<string:rotations_str>', methods=['POST'])
+    @job_belongs_to_user
     def submit_config(job_name: str, slice_height: float, rotations_str: str) -> Response:
         """
         Submit a configuration for a job.
@@ -176,6 +215,7 @@ def init_job(app):
 
 
     @app.route('/progress/<string:job_name>', methods=["GET", "POST"])
+    @job_belongs_to_user
     def progress(job_name: str) -> str:
         """
         Retrieves the progress of a job.
@@ -187,7 +227,7 @@ def init_job(app):
             str: The progress of the job as a string.
         """
         if request.method == "GET":
-            return render_template('progress.html', job_name=job_name)
+            return render_template('job/progress.html', job_name=job_name)
         else:
             progress = json.load(open(os.path.join('static', job_name, 'data.json'), "r"))[
                 "progress"]
@@ -195,9 +235,10 @@ def init_job(app):
 
 
     @app.route('/<string:job_name>')
+    @job_belongs_to_user
     def output(job_name: str) -> str:
         """
-        Render the success.html template with the given job name.
+        Render the job/success.html template with the given job name.
 
         Args:
             job_name (str): The name of the job.
@@ -205,6 +246,6 @@ def init_job(app):
         Returns:
             str: The rendered template.
         """
-        return render_template("success.html", job_name=job_name)
+        return render_template("job/success.html", job_name=job_name)
     
     return app
