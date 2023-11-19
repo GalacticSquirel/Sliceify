@@ -52,8 +52,9 @@
             createButton('x', sld);
             createButton('y', sld);
             createButton('z', sld);
-            
-            sld.create({{min_slice_height}},{{max_slice_height}});
+            var minSliceHeight = parseFloat("{{min_slice_height}}");
+            var maxSliceHeight = parseFloat("{{max_slice_height}}");
+            sld.create(minSliceHeight, maxSliceHeight);
             buttonPane.appendChild(submitButton);
         });
 
