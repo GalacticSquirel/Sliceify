@@ -3,6 +3,7 @@
 
 <script>
     var jobName = '{{job_name}}';
+    var jobRoute = '{{job_route}}';
     var interval = setInterval(update_progress, 1000);
     function update_progress() {
         fetch(`/progress/${jobName}`, {
@@ -16,7 +17,7 @@
         .then(n => {
             if (n >= 100) {
                 clearInterval(interval);
-                window.location.href = `/${jobName}`;
+                window.location.href = `${jobRoute}`;
             }
             document.getElementById('progress-bar').value = n;
         })

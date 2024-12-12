@@ -15,26 +15,34 @@
             </tr>
         </thead>
         <tbody>
-        {% for item in items %}
-            {% if item != "svg_layers" %}
-                <tr>
-                    <td>
-                        {% if '.' in item %}
-                            <a href="{{ url_for('static', filename=download_path ~ '/' ~ item) }}">{{ item }}</a>
-                        {% else %}
-                            <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">{{ item }}</a>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if '.' in item and '.dxf' in item%}
-                        <a href="{{ url_for('viewdxf', job_name=download_path.split('/')[0], folder=download_path.split('/')[1], file=item) }}">View Item</a>
-                        {% else %}
-                            <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">Download</a>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endif %}
-        {% endfor %}
+            {% for item in items|sort %}
+                {% if item != "svg_layers" %}
+                    {% if item != "data.json" %}
+                        <tr>
+                            <td>
+                                {% if '.' in item %}
+                                    <a href="{{ url_for('static', filename=download_path ~ '/' ~ item) }}">{{ item }}</a>
+                                {% else %}
+                                    <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">{{ item }}</a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if '.' in item and '.dxf' in item%}
+                                    <a href="{{ url_for('viewdxf', job_name=download_path.split('/')[0], folder=download_path.split('/')[1], file=item) }}">View Item</a>
+                                {% elif '.' in item and '.stl' in item %}
+                                    <a href="{{ url_for('viewstl', job_name=download_path.split('/')[0], folder=download_path.split('/')[1], file=item) }}">View STL</a>
+                                {% elif item == "zip" %}
+                                    
+                                {% elif '.' not in item %}
+                                    <a href="{{ url_for('downloadfolder', job_name=job_name, path=item) }}">Download as ZIP</a>
+                                {% else %}
+                                    <a href="{{ url_for('viewfiles', job_name=job_name, path=item) }}">Download</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
         </tbody>
     </table>
 </body>

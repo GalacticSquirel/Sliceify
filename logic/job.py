@@ -310,8 +310,7 @@ def generate_unique_folder_name() -> str:
         str: The generated folder name.
     """
 
-    # Generate a unique folder name using timestamp and random characters
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     random_chars = ''.join(random.choices(
         string.ascii_uppercase + string.digits, k=6))
     folder_name = f'job_{timestamp}_{random_chars}'

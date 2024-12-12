@@ -1,3 +1,5 @@
+from datetime import time
+from nt import times
 from imports import *
 from logic.logic import *
 
@@ -71,9 +73,8 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
                 print(email,username, password, 0, token, 0, list())
                 
                 send_verify_email(url_for('verify', token=token, _external=True), email)
-                
                 db.session.add(new_user)
-                db.session.commit()            
+                db.session.commit()
                 user = User.query.filter_by(email=email).first()
                 login_user(user)
                 return redirect(url_for('account'))
@@ -109,15 +110,22 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
                 password = request.form.get('password')
                 remember = True if request.form.get('remember') else False
                 user = User.query.filter_by(email=email).first()
-
+                token = request.form.get('token')
                 if not user:
                     flash('Please sign up before!')
                     return redirect(url_for('signup'))
                 elif not check_password_hash(user.password, str(password)):
                     flash('Please check your login details and try again.')
                     return redirect(url_for('login'))
-                login_user(user, remember=remember)
-                return redirect(url_for('account'))
+                if user.otp_token == None:
+                    login_user(user, remember=remember)
+                    return redirect(url_for('account'))
+                else:
+                    if token:
+                        if pyotp.totp.TOTP(user.otp_token).verify(token):
+                            login_user(user, remember=remember)
+                            return redirect(url_for('account'))
+                return redirect('/login')
         else:
             return redirect('/login')
         
@@ -152,12 +160,50 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
     @lr
     def account() -> str:
         """
-        Renders the account page for a logged-in user.
+        Renders the account page for a logged-in user. 
+        It retrieves all jobs associated with the currently logged-in user, extracts the timestamp from each job name, 
+        and returns a response that displays these jobs sorted by the timestamp.
 
         Returns:
             str: The rendered HTML template for the account page.
+            
         """
-        return render_template('forms/account.html',username=current_user.name,email=current_user.email)
+        jobs = json.loads(current_user.jobs)
+        print(jobs)
+        jobs_with_timestamps = []
+        if jobs:
+            for job in list(jobs):
+                name = job
+                print(name)
+                timestamp_str = "_".join(name.split('_')[1:3])
+                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                jobs_with_timestamps.append({'name': name, 'timestamp': timestamp})
+            jobs_with_timestamps.sort(key=lambda job: job['timestamp'],reverse=True)
+        return render_template('forms/account.html',username=current_user.name,email=current_user.email, jobs=jobs_with_timestamps)
+    
+    @app.route('/2fasetup', methods=['GET', 'POST'])
+    @lr
+    def add_2fa():
+
+        if request.method == 'GET':
+            # Generate a secret key for a user
+            secret_key = pyotp.random_base32()
+            print(f"Secret key for user: {secret_key}")
+            current_user.otp_token = secret_key
+            db.session.commit()
+            # Generate a provisioning URI for the user to scan with their 2FA app
+            uri = pyotp.totp.TOTP(secret_key).provisioning_uri(name=current_user.email, issuer_name='Sliceify')
+            return render_template('forms/2fa.html', uri=uri, secret_key=current_user.otp_token)
+        if request.method == 'POST':
+            token = request.form.get('token')
+            print(current_user.otp_token, "---")
+            valid = pyotp.totp.TOTP(current_user.otp_token).verify(str(token))
+            if valid:
+                return redirect(url_for('account'))
+            else:
+                current_user.otp_token = None
+                db.session.commit()
+        return redirect(url_for('add_2fa'))
 
     @app.route('/logout')
     @lr
@@ -172,4 +218,8 @@ def init_user(app: flask.app.Flask) -> flask.app.Flask:
 
         logout_user()
         return redirect(url_for('index'))
+
+    @app.route('/output.css')
+    def stylecss():
+        return send_file(f'output.css')
     return app

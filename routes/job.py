@@ -1,8 +1,9 @@
 global progress
+from sqlalchemy.engine import url
 from imports import *
 from logic.logic import *
 from routes.user import db
-def init_job(app):
+def init_job(app: flask.app.Flask) -> flask.app.Flask:
     
     @app.route('/start', methods=['GET', 'POST'])
     @lr
@@ -83,43 +84,42 @@ def init_job(app):
             items = os.listdir(os.path.join(app.root_path, 'static', job_name))
             return render_template('job/viewfiles.html', items=items, job_name=job_name, download_path=job_name)
 
-
-    @app.route('/downloaddxfs/<string:job_name>')
-    @job_belongs_to_user
-    def download_dxf(job_name: str) -> Response:
+    @app.route('/downloadfolder/<job_name>/<path:path>')
+    def downloadfolder(job_name: str, path: str) -> werkzeug.wrappers.response.Response:
         """
-        Downloads the DXF files from the specified job.
+        This function handles the '/download_folder/<job_name>/<path>' route. 
+        It creates a ZIP file of the folder specified by 'path' within the job specified by 'job_name'.
 
         Parameters:
-        job_name (str): The name of the job.
+        job_name (str): The name of the job containing the folder to be zipped.
+        path (str): The path of the folder to be zipped, relative to the job folder.
 
         Returns:
-        A Response object containing the downloaded DXF files.
-        """
-        import zipfile
-        try:
-            # Create a ZIP file containing the contents of the specified folder
-            zip_filename = f'static/{job_name}/{job_name}_dxf_layers.zip'
-            folder_path = f'static/{job_name}/dxf_layers'
-            folder_abs_path = os.path.join(app.root_path, folder_path)
-            print(zip_filename, folder_path, folder_abs_path)
-            # Create the ZIP file in memory
-            zip_buffer = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+        A Flask response that triggers the download of the ZIP file.
 
-            # Add DXF files to the ZIP file with the desired folder structure
-            for filename in os.listdir(folder_abs_path):
-                if filename.endswith('.dxf'):
-                    src_file = os.path.join(folder_abs_path, filename)
-                    zip_file_path = os.path.join('output_dxf_layers', filename)
-                    zip_buffer.write(src_file, zip_file_path)
-            zip_buffer.close()
-
-            return send_file(zip_filename, as_attachment=True)
-
-        except Exception as e:
-            raise e
+        Error Responses:
+        - Returns "Error: Cannot zip the 'zip' folder." with a 400 status code if the requested folder is 'zip' (case-insensitive).
+        - Returns "Error: The requested folder does not exist." with a 404 status code if the requested folder does not exist.
         
+        """
+        if path.lower() == 'zip':
+            return Response("Error: Cannot zip the 'zip' folder.", status=400)
+        if not os.path.exists(f"{app.root_path}/static/{job_name}/{path}"):
+            return Response("Error: The requested folder does not exist.", status=404)
+        
+        zip_folder_path = os.path.join(app.root_path, 'static', job_name, 'zip')
+        os.makedirs(zip_folder_path, exist_ok=True)
+        zip_filename = os.path.join(zip_folder_path, f'{path}.zip')
+        folder_path = os.path.join(app.root_path, 'static', job_name, path)
+        zip_buffer = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                src_file = os.path.join(root, file)
+                zip_file_path = os.path.relpath(src_file, folder_path)
+                zip_buffer.write(src_file, zip_file_path)
+        zip_buffer.close()
 
+        return send_file(zip_filename, as_attachment=True)
 
     @app.route('/viewdxf//<string:job_name>/<string:folder>/<string:file>')
     @job_belongs_to_user
@@ -227,14 +227,15 @@ def init_job(app):
             str: The progress of the job as a string.
         """
         if request.method == "GET":
-            return render_template('job/progress.html', job_name=job_name)
+            print(url_for('output', job_name=job_name))
+            return render_template('job/progress.html', job_name=job_name, job_route=url_for('output', job_name=job_name))
         else:
             progress = json.load(open(os.path.join('static', job_name, 'data.json'), "r"))[
                 "progress"]
             return str(progress)
 
 
-    @app.route('/<string:job_name>')
+    @app.route('/job/<string:job_name>')
     @job_belongs_to_user
     def output(job_name: str) -> str:
         """
@@ -247,5 +248,30 @@ def init_job(app):
             str: The rendered template.
         """
         return render_template("job/success.html", job_name=job_name)
+    
+    from flask import request, jsonify
+
+    @app.route('/deletejob/<string:job_name>', methods=['GET'])
+    @job_belongs_to_user
+    def deletejob(job_name: str) -> werkzeug.wrappers.response.Response:
+        """
+        This function handles the '/delete_job' route. 
+        It deletes the job specified in the request data if it belongs to the currently logged-in user.
+        
+        Args:
+            job_name (str): The name of the job.
+
+        Returns:
+            str: A JSON response indicating the result of the operation.
+        """
+        curr_jobs = json.loads(current_user.jobs)
+        if job_name in curr_jobs:
+            shutil.rmtree(os.path.join(app.root_path, 'static', job_name))
+            curr_jobs.remove(job_name)
+            current_user.jobs = json.dumps(curr_jobs)
+            db.session.commit()
+            return redirect(url_for('account'))
+        
+        return redirect(url_for('account'))
     
     return app
