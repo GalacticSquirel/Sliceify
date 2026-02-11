@@ -1,0 +1,17 @@
+<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+
+<form action="/2fasetup" method="POST">
+    <div id="qrcode"></div>
+    "{{secret_key}}"
+    <label for="token">2FA Token:</label>
+    <input id="token" name="token"><br><br>
+    <input type="submit" value="Login">
+</form>
+
+<script type="text/javascript">
+    var qrcode = new QRCode(document.getElementById("qrcode"), {
+        text: "{{ uri }}",
+        width: 128,
+        height: 128
+    });
+</script>

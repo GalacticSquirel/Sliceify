@@ -1,0 +1,31 @@
+name: Build Docker Image and Deploy to Heroku
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check Out Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Login to Heroku Container registry
+      run: docker login --username=_ --password=$HEROKU_API_KEY registry.heroku.com
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+    - name: Build and push to Heroku
+      run: |
+        docker build -t registry.heroku.com/sliceify/web .
+        docker push registry.heroku.com/sliceify/web
+
+    - name: Release to Heroku
+      run: heroku container:release web --app sliceify
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}

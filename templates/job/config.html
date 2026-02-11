@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>STL Viewer</title>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@latest/build/three.module.js",
+                "three/examples/jsm/": "https://unpkg.com/three@latest/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+        var jobName = '{{job_name}}';
+        var sliceHeight = '{{slice_height}}';
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        var controls = new OrbitControls(camera, renderer.domElement);
+
+        // Disable rotation
+        controls.enableRotate = false;
+
+
+
+        // You can also adjust other parameters if needed
+        controls.enableZoom = true;  // Enable zoom
+        controls.enablePan = true;   // Enable pan
+
+        var mesh;
+
+
+        var geometry = new THREE.BufferGeometry();
+        var loader = new STLLoader();
+        loader.load("{{path}}", function (geometry) {
+            var material = new THREE.MeshNormalMaterial();
+            mesh = new THREE.Mesh(geometry, material);
+
+            scene.add(mesh);
+            alignWithBoundingBox();
+            computeLines(mesh, 3)
+            const sld = new Slider();
+            createButton('x', sld);
+            createButton('y', sld);
+            createButton('z', sld);
+            var minSliceHeight = parseFloat("{{min_slice_height}}");
+            var maxSliceHeight = parseFloat("{{max_slice_height}}");
+            sld.create(minSliceHeight, maxSliceHeight);
+            buttonPane.appendChild(submitButton);
+        });
+
+        var computeLines = function(mesh, interval) {
+            mesh.geometry.computeBoundingBox()
+            var boundingBox = mesh.geometry.boundingBox;
+            var lineMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
+    
+            for (var i = boundingBox.min.z; i <= boundingBox.max.z; i += parseFloat(interval)) {
+                var points = [];
+                points.push(new THREE.Vector3(boundingBox.min.x, boundingBox.min.y, i));
+                points.push(new THREE.Vector3(boundingBox.max.x, boundingBox.max.y, i));
+                
+                var lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                var line = new THREE.Line(lineGeometry, lineMaterial);
+                scene.add(line);
+            }
+        
+        }
+                
+        function removeAllLines(scene) {
+            for (var i = scene.children.length - 1; i >= 0; i--) {
+                var object = scene.children[i];
+                if (object instanceof THREE.Line) {
+                    scene.remove(object);
+                }
+            }
+        }
+        
+        window.rotations = [0,0,0];
+
+        var rotateBy90Degrees = function (axis, sld) {
+            if (mesh) {
+                var angle = Math.PI / 2;
+                var rotationMatrix = new THREE.Matrix4();
+                
+                if (axis === 'x') {
+                    rotationMatrix.makeRotationX(angle);
+                    window.rotations[0] += 90;
+                } else if (axis === 'y') {
+                    rotationMatrix.makeRotationY(angle);
+                    window.rotations[1] += 90;
+                } else if (axis === 'z') {
+                    rotationMatrix.makeRotationZ(angle);
+                    window.rotations[2] += 90;
+                }       
+                mesh.geometry.applyMatrix4(rotationMatrix);
+                mesh.geometry.computeBoundingBox();
+                
+                removeAllLines(scene);
+                computeLines(mesh, 3);
+                mesh.geometry.computeBoundingBox()
+                var boundingBox = mesh.geometry.boundingBox;
+                var minSliceHeight = Math.abs(boundingBox.max.z - boundingBox.min.z) / 5000;
+                var maxSliceHeight = (boundingBox.max.z - boundingBox.min.z) / 2;
+                
+                sld.update(minSliceHeight, maxSliceHeight);
+                
+            }
+        };
+        
+
+        class Slider {
+            constructor() {
+                this.minSliceHeight = null;
+                this.maxSliceHeight = null;
+                this.slider = document.createElement('input');
+            }
+        
+            create(minSliceHeight, maxSliceHeight) {
+                this.minSliceHeight = minSliceHeight;
+                this.maxSliceHeight = maxSliceHeight;
+                this.slider.type = 'number';
+                this.slider.id = 'mySlider';
+                this.slider.min = minSliceHeight.toFixed(5);
+                this.slider.max = maxSliceHeight.toFixed(1);
+                this.slider.value = (maxSliceHeight.toFixed(1) - minSliceHeight.toFixed(5)).toFixed(0) / 10;
+                this.slider.step = ((maxSliceHeight.toFixed(1) / minSliceHeight.toFixed(5)) / 10000).toFixed(1);
+                this.slider.oninput = () => {
+                    if (this.slider.value < minSliceHeight.toFixed(5)) {
+                        this.slider.value = minSliceHeight.toFixed(5);
+                    }
+                    sliceHeight = this.slider.value;
+                    removeAllLines(scene);
+                    computeLines(mesh, sliceHeight);
+                };
+                buttonPane.appendChild(this.slider);
+            }
+        
+            update(minSliceHeight, maxSliceHeight) {
+                this.minSliceHeight = minSliceHeight;
+                this.maxSliceHeight = maxSliceHeight;
+                this.slider.min = minSliceHeight.toFixed(5);
+                this.slider.max = maxSliceHeight.toFixed(1);
+                this.slider.value = (maxSliceHeight.toFixed(1) - minSliceHeight.toFixed(5)).toFixed(0) / 10;
+                this.slider.step = ((maxSliceHeight.toFixed(1) / minSliceHeight.toFixed(5)) / 10000).toFixed(1);
+                sliceHeight = this.slider.value;
+                removeAllLines(scene);
+                computeLines(mesh, sliceHeight);
+            }
+        }
+        
+
+
+
+        var alignWithBoundingBox = function () {
+            if (mesh) {
+                var boundingBox = new THREE.Box3().setFromObject(mesh);
+                var center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                var size = new THREE.Vector3();
+                boundingBox.getSize(size);
+
+                // Calculate the distance based on the object's size and your desired perspective
+                var distance = Math.max(size.x, size.y, size.z) * 2;
+
+                // Calculate the position of the camera
+                var frontVector = new THREE.Vector3(0, 0, 1);
+                var cameraPosition = new THREE.Vector3().copy(center).add(frontVector.multiplyScalar(distance));
+
+                // Set the camera's position and look at the center of the object
+                camera.position.copy(cameraPosition);
+                camera.lookAt(center);
+            }
+        };
+
+
+        var animate = function () {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        };
+
+        animate();
+
+        // Add the rotation buttons dynamically
+        var buttonPane = document.createElement('div');
+        buttonPane.id = 'buttonPane';
+        buttonPane.style.position = 'absolute';
+        buttonPane.style.top = '0';
+        buttonPane.style.right = '0';
+        buttonPane.style.padding = '20px';
+        buttonPane.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        buttonPane.style.color = 'white';
+        buttonPane.style.display = 'flex';
+        buttonPane.style.flexDirection = 'column';
+        document.body.appendChild(buttonPane);
+
+        var createButton = function (axis,sld) {
+            var button = document.createElement('button');
+            button.textContent = `Rotate ${axis.toUpperCase()} 90°`;
+            button.onclick = function () {
+                rotateBy90Degrees(axis, sld); 
+                alignWithBoundingBox();
+            };
+            buttonPane.appendChild(button);
+        };
+        
+
+
+        var alignButton = document.createElement('button');
+        alignButton.textContent = 'Align Camera';
+        alignButton.onclick = function () {
+            alignWithBoundingBox();
+        };
+        buttonPane.appendChild(alignButton);
+
+        var submitButton = document.createElement('button');
+        submitButton.textContent = 'Submit';
+        submitButton.onclick = function () {
+            
+            fetch(`/submitconfig/${jobName}/${parseFloat(sliceHeight).toFixed(5)}/${window.rotations}`, {
+                method: 'POST', // or 'GET'
+                headers: {
+                    'Content-Type': 'application/json',
+
+                },
+            })
+            window.location.href = `/progress/${jobName}`;
+            
+        };
+        
+    </script>
+    <style>
+        #buttonPane {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        button {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+</body>
+
+</html>

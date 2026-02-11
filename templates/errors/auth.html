@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Error</title>
+    <script>
+        // Function to redirect to the login page after 5 seconds
+        function redirect() {
+            window.location.href = "/login";
+        }
+
+        // Function to start the countdown
+        function startCountdown() {
+            var countdown = 5; // Number of seconds for the countdown
+            var countdownElement = document.getElementById("countdown");
+
+            // Update the countdown element every second
+            var countdownInterval = setInterval(function() {
+                countdownElement.innerHTML = countdown;
+                countdown--;
+
+                // When the countdown reaches 0, redirect to the login page
+                if (countdown < 0) {
+                    clearInterval(countdownInterval);
+                    redirect();
+                }
+            }, 1000);
+        }
+
+        // Call the startCountdown function when the page loads
+        window.onload = function() {
+            startCountdown();
+        }
+    </script>
+</head>
+<body>
+    <h1>Authentication Error</h1>
+    <p>You need to be authenticated to access this page.</p>
+    <p>Redirecting to the <a href="/login">login page</a> in <span id="countdown"></span> seconds...</p>
+</body>
+</html>

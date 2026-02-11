@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Account Page</title>
+</head>
+<body>
+    <h1>Welcome to your account!</h1>
+    
+    <p>Username: {{ username }}</p>
+    <p>Email: {{ email }}</p>
+    <p><a href="/start">Sliceify</a> your STL</p>
+    <a href="{{url_for('add_2fa')}}">Add 2FA</a>
+    <a href="/logout">Logout</a>
+    {% if jobs != [] %}
+        <h2>Your Jobs</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Job Name</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                    <tr>
+                        <td>{{ job.name }}</td>
+                        <td>{{ job.timestamp.strftime('%d-%m-%Y %H:%M:%S') }}</td>
+                        <td><button class="delete-btn" data-job-name="{{ job.name }}">Delete</button></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</body>
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        var deleteButtons = document.querySelectorAll('.delete-btn');
+        deleteButtons.forEach(function(button) {
+            button.addEventListener('click', function(e){
+                e.preventDefault();
+                var job_name = this.getAttribute('data-job-name');
+                var confirmDelete = confirm("Are you sure you want to delete " + job_name + "?");
+                if (confirmDelete) {
+                    fetch(`/deletejob/${job_name}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        }
+                    })
+                    .then(function() {
+
+                        location.reload();
+                    });
+                }
+            });
+        });
+    });
+</script>
+</html>
